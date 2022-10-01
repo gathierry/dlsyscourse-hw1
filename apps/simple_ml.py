@@ -29,9 +29,14 @@ def parse_mnist(image_filesname, label_filename):
                 labels of the examples.  Values should be of type np.int8 and
                 for MNIST will contain the values 0-9.
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    with gzip.open(image_filesname) as fid:
+        # First 16 bytes are magic_number, n_imgs, n_rows, n_cols
+        X = np.frombuffer(fid.read(), 'B', offset=16)
+        X = X.reshape(-1, 784).astype('float32') / 255
+    with gzip.open(label_filename) as f:
+        # First 8 bytes are magic_number, n_labels
+        y = np.frombuffer(f.read(), 'B', offset=8)
+    return X, y
 
 
 def softmax_loss(Z, y_one_hot):
@@ -50,9 +55,7 @@ def softmax_loss(Z, y_one_hot):
     Returns:
         Average softmax loss over the sample. (ndl.Tensor[np.float32])
     """
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+    return (ndl.ops.log(ndl.ops.exp(Z).sum(axes=(1,))) - (Z * y_one_hot).sum(axes=(1,))).sum() / Z.shape[0]
 
 
 def nn_epoch(X, y, W1, W2, lr = 0.1, batch=100):
@@ -78,10 +81,26 @@ def nn_epoch(X, y, W1, W2, lr = 0.1, batch=100):
             W1: ndl.Tensor[np.float32]
             W2: ndl.Tensor[np.float32]
     """
+    num_examples, _ = X.shape
+    start = 0
+    while start + batch <= num_examples:
+        X_batch = ndl.autograd.Tensor(X[start:start + batch])
+        y_batch = ndl.autograd.Tensor(y[start:start + batch])
 
-    ### BEGIN YOUR SOLUTION
-    raise NotImplementedError()
-    ### END YOUR SOLUTION
+        Z = ndl.ops.relu(X_batch @ W1) @ W2  # (num_examples, num_classes)
+
+        y_one_hot = ndl.autograd.Tensor(
+            np.eye(W2.shape[1])[y_batch.numpy()], require_grad=False
+        )  # (num_examples, num_classes)
+        
+        loss = softmax_loss(Z, y_one_hot)
+        loss.backward()
+
+        W1 = ndl.autograd.Tensor(W1.numpy() - lr * W1.grad.numpy())
+        W2 = ndl.autograd.Tensor(W2.numpy() - lr * W2.grad.numpy())
+
+        start += batch
+    return W1, W2
 
 
 ### CODE BELOW IS FOR ILLUSTRATION, YOU DO NOT NEED TO EDIT
